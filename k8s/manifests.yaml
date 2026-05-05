@@ -23,23 +23,6 @@ data:
   ALERT_SEVERITIES:      "critical,warning"
 
 ---
-# Create this secret manually — never in Git:
-#
-#   kubectl create secret generic aiops-secrets \
-#     --namespace agentic-aiops \
-#     --from-literal=GROQ_API_KEY=gsk_your-key \
-#     --from-literal=GITHUB_TOKEN=ghp_your-token
-apiVersion: v1
-kind: Secret
-metadata:
-  name: aiops-secrets
-  namespace: agentic-aiops
-type: Opaque
-stringData:
-  GROQ_API_KEY:   "PLACEHOLDER"
-  GITHUB_TOKEN:   "PLACEHOLDER"
-
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
