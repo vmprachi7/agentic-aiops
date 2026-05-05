@@ -1,0 +1,101 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: agentic-aiops
+  labels:
+    app.kubernetes.io/managed-by: argocd
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aiops-config
+  namespace: agentic-aiops
+data:
+  PROMETHEUS_URL:        "http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090"
+  LOKI_URL:              "http://loki.monitoring.svc.cluster.local:3100"
+  GITHUB_REPO:           "vmprachi7/agentic-aiops"
+  USE_MOCK_DATA:         "false"
+  POLL_INTERVAL_SECONDS: "60"
+  LOKI_LOG_LINES:        "50"
+  LOKI_LOOKBACK_SECONDS: "300"
+  ALERT_SEVERITIES:      "critical,warning"
+
+---
+# Create this secret manually — never in Git:
+#
+#   kubectl create secret generic aiops-secrets \
+#     --namespace agentic-aiops \
+#     --from-literal=GROQ_API_KEY=gsk_your-key \
+#     --from-literal=GITHUB_TOKEN=ghp_your-token
+apiVersion: v1
+kind: Secret
+metadata:
+  name: aiops-secrets
+  namespace: agentic-aiops
+type: Opaque
+stringData:
+  GROQ_API_KEY:   "PLACEHOLDER"
+  GITHUB_TOKEN:   "PLACEHOLDER"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agentic-aiops
+  namespace: agentic-aiops
+  labels:
+    app: agentic-aiops
+spec:
+  replicas: 1       # single instance — prevents duplicate Issues/PRs
+  selector:
+    matchLabels:
+      app: agentic-aiops
+  template:
+    metadata:
+      labels:
+        app: agentic-aiops
+      annotations:
+        prometheus.io/scrape: "false"  # agent doesn't expose metrics
+    spec:
+      imagePullSecrets:
+        - name: acr-secret
+      containers:
+        - name: agentic-aiops
+          image: devopsplatformacr.azurecr.io/agentic-aiops:latest
+          envFrom:
+            - configMapRef:
+                name: aiops-config
+            - secretRef:
+                name: aiops-secrets
+          resources:
+            requests:
+              cpu:    50m
+              memory: 128Mi
+            limits:
+              cpu:    200m
+              memory: 256Mi
+
+---
+# ArgoCD Application — tells ArgoCD to watch this repo
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: agentic-aiops
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL:        https://github.com/vmprachi7/agentic-aiops
+    targetRevision: main
+    path:           k8s
+  destination:
+    server:    https://kubernetes.default.svc
+    namespace: agentic-aiops
+  syncPolicy:
+    automated:
+      prune:    true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
