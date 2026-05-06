@@ -47,9 +47,9 @@ spec:
       containers:
         - name: agentic-aiops
 <<<<<<< HEAD
-          image: devopsplatformacr.azurecr.io/agentic-aiops:latest
+          image: devopsplatformacr.azurecr.io/agentic-aiops:53d3514
 =======
-          image: devopsplatformacr.azurecr.io/agentic-aiops:0a64277
+          image: devopsplatformacr.azurecr.io/agentic-aiops:53d3514
 >>>>>>> refs/remotes/origin/main
           envFrom:
             - configMapRef:
