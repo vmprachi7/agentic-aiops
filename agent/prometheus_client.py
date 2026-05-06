@@ -1,6 +1,12 @@
 """
 Prometheus API client.
-Queries the Prometheus AlertManager API for currently firing alerts.
+Queries the Prometheus API for currently firing alerts.
+
+Filtering strategy:
+- Include all severities by default (critical, warning, info, none)
+- Exclude known AKS false positives by alert name
+- Exclude system namespaces (kube-system, monitoring, argocd)
+- Focus on user workload namespaces
 """
 import requests
 from dataclasses import dataclass
@@ -20,14 +26,21 @@ class Alert:
 
     @property
     def fingerprint(self) -> str:
-        """Unique ID for this alert — used to avoid duplicate Issues/PRs."""
+        """Unique ID — alert name + namespace + pod."""
         return f"{self.name}-{self.namespace}-{self.pod}"
+
+
+# Namespaces to ignore — system components, not user workloads
+SYSTEM_NAMESPACES = {
+    "kube-system", "monitoring", "argocd",
+    "cert-manager", "ingress-nginx", ""
+}
 
 
 def get_firing_alerts() -> list[Alert]:
     """
-    Returns list of currently firing alerts from Prometheus.
-    Filters by configured severity levels.
+    Returns list of currently firing alerts.
+    Filters out AKS false positives and system namespace noise.
     """
     if config.USE_MOCK_DATA:
         return _mock_alerts()
@@ -40,27 +53,40 @@ def get_firing_alerts() -> list[Alert]:
         resp.raise_for_status()
         data = resp.json()
 
-        alerts = []
-        for a in data.get("data", {}).get("alerts", []):
+        alerts    = []
+        all_alerts = data.get("data", {}).get("alerts", [])
+        print(f"  Prometheus returned {len(all_alerts)} total alerts")
+
+        for a in all_alerts:
             if a.get("state") != "firing":
                 continue
 
-            labels   = a.get("labels", {})
-            anns     = a.get("annotations", {})
-            severity = labels.get("severity", "unknown")
+            labels    = a.get("labels", {})
+            anns      = a.get("annotations", {})
+            name      = labels.get("alertname", "UnknownAlert")
+            severity  = labels.get("severity", "none")
+            namespace = labels.get("namespace", "")
 
-            if severity not in config.ALERT_SEVERITIES:
+            # Skip known AKS false positives
+            if name in config.EXCLUDE_ALERTS:
+                print(f"  ⏭️  Skipping excluded alert: {name}")
                 continue
 
-            # Skip AKS false positives and heartbeat alerts
-            alert_name = labels.get("alertname", "")
-            if alert_name in config.EXCLUDE_ALERTS:
+            # Skip system namespaces — too noisy, not user workloads
+            if namespace in SYSTEM_NAMESPACES:
+                print(f"  ⏭️  Skipping system namespace alert: {name} ({namespace})")
                 continue
+
+            # Skip cluster-wide alerts with no namespace
+            # (KubeSchedulerDown, KubeProxyDown etc already caught above)
+            # but allow through if it's a meaningful cluster alert
+            if not namespace and name not in config.ALERT_SEVERITIES:
+                pass  # let it through — we filter by EXCLUDE_ALERTS instead
 
             alerts.append(Alert(
-                name=labels.get("alertname", "UnknownAlert"),
+                name=name,
                 severity=severity,
-                namespace=labels.get("namespace", "unknown"),
+                namespace=namespace or "cluster",
                 pod=labels.get("pod", labels.get("deployment", "unknown")),
                 summary=anns.get("summary", "No summary available"),
                 description=anns.get("description", "No description available"),
@@ -68,6 +94,7 @@ def get_firing_alerts() -> list[Alert]:
                 starts_at=a.get("activeAt", "unknown"),
             ))
 
+        print(f"  After filtering: {len(alerts)} actionable alerts")
         return alerts
 
     except requests.exceptions.ConnectionError:
@@ -104,8 +131,7 @@ def _mock_alerts() -> list[Alert]:
             pod="finops-engine-695fcf85bc-k9bp6",
             summary="Container is waiting",
             description="Container finops-engine in pod finops-engine-695fcf85bc-k9bp6 "
-                        "has been in waiting state for more than 1 hour. "
-                        "Reason: ImagePullBackOff.",
+                        "has been in waiting state for more than 1 hour.",
             labels={
                 "alertname": "KubeContainerWaiting",
                 "severity":  "warning",

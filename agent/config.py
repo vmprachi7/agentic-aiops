@@ -1,7 +1,5 @@
 """
 Central configuration — reads from environment variables.
-In AKS these come from Kubernetes ConfigMap and Secrets.
-Locally they come from .env file.
 """
 import os
 from dotenv import load_dotenv
@@ -14,16 +12,12 @@ AI_MODEL      = "llama-3.1-8b-instant"
 AI_MAX_TOKENS = 2048
 
 # ── Prometheus ────────────────────────────────────────────────
-# Local:   http://localhost:9090  (via port-forward)
-# In AKS:  http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
 PROMETHEUS_URL = os.getenv(
     "PROMETHEUS_URL",
     "http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090"
 )
 
 # ── Loki ─────────────────────────────────────────────────────
-# Local:   http://localhost:3100  (via port-forward)
-# In AKS:  http://loki.monitoring.svc.cluster.local:3100
 LOKI_URL = os.getenv(
     "LOKI_URL",
     "http://loki.monitoring.svc.cluster.local:3100"
@@ -38,16 +32,21 @@ POLL_INTERVAL_SECONDS = int(os.getenv("POLL_INTERVAL_SECONDS", "60"))
 LOKI_LOG_LINES        = int(os.getenv("LOKI_LOG_LINES", "50"))
 LOKI_LOOKBACK_SECONDS = int(os.getenv("LOKI_LOOKBACK_SECONDS", "300"))
 
-# Alert severities to act on
-ALERT_SEVERITIES = os.getenv("ALERT_SEVERITIES", "critical,warning").split(",")
+# How long before the same alert can create a new Issue (hours)
+# Set to 0 to always create a new Issue for every firing alert
+ALERT_EXPIRY_HOURS = float(os.getenv("ALERT_EXPIRY_HOURS", "6"))
 
-# Alerts to ignore — AKS false positives + heartbeat
-EXCLUDE_ALERTS = os.getenv(
-    "EXCLUDE_ALERTS",
-    "KubeSchedulerDown,KubeControllerManagerDown,KubeProxyDown,Watchdog"
+# Alert severities to include — all by default
+ALERT_SEVERITIES = os.getenv(
+    "ALERT_SEVERITIES", "critical,warning,info,none"
 ).split(",")
 
-# Use mock data instead of real Prometheus/Loki
+# AKS false positives + heartbeat — always exclude these
+EXCLUDE_ALERTS = os.getenv(
+    "EXCLUDE_ALERTS",
+    "KubeSchedulerDown,KubeControllerManagerDown,KubeProxyDown,Watchdog,KubeClientCertificateExpiration"
+).split(",")
+
 USE_MOCK_DATA = os.getenv("USE_MOCK_DATA", "false").lower() == "true"
 
 

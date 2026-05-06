@@ -1,50 +1,78 @@
 """
-Alert tracker — prevents duplicate GitHub Issues and PRs.
-Keeps an in-memory set of alert fingerprints already processed.
-Resets when the pod restarts (acceptable — Issues/PRs will show as duplicates
-but this is better than losing alerts on restart).
+Alert tracker — prevents duplicate GitHub Issues.
+Stores alert fingerprints with timestamps.
+Alerts expire after ALERT_EXPIRY_HOURS so re-firing alerts
+after resolution create a new Issue.
 """
 import json
+import time
 import os
 from pathlib import Path
 
-# File-based persistence so tracker survives pod restarts within a session
-TRACKER_FILE = Path("/tmp/seen_alerts.json")
+TRACKER_FILE       = Path("/tmp/seen_alerts.json")
+ALERT_EXPIRY_HOURS = float(os.getenv("ALERT_EXPIRY_HOURS", "6"))
 
 
-def _load() -> set:
+def _load() -> dict:
+    """Load tracker — returns {fingerprint: timestamp}"""
     try:
         if TRACKER_FILE.exists():
-            return set(json.loads(TRACKER_FILE.read_text()))
+            return json.loads(TRACKER_FILE.read_text())
     except Exception:
         pass
-    return set()
+    return {}
 
 
-def _save(seen: set):
+def _save(data: dict):
     try:
-        TRACKER_FILE.write_text(json.dumps(list(seen)))
+        TRACKER_FILE.write_text(json.dumps(data, indent=2))
     except Exception:
         pass
+
+
+def _purge_expired(data: dict) -> dict:
+    """Remove alerts older than ALERT_EXPIRY_HOURS."""
+    now     = time.time()
+    cutoff  = ALERT_EXPIRY_HOURS * 3600
+    return {
+        fp: ts for fp, ts in data.items()
+        if (now - ts) < cutoff
+    }
 
 
 def is_seen(fingerprint: str) -> bool:
-    """Returns True if this alert has already been processed."""
-    return fingerprint in _load()
+    """Returns True if alert was processed recently (within expiry window)."""
+    data = _purge_expired(_load())
+    return fingerprint in data
 
 
 def mark_seen(fingerprint: str):
-    """Mark an alert fingerprint as processed."""
-    seen = _load()
-    seen.add(fingerprint)
-    _save(seen)
+    """Mark alert as processed with current timestamp."""
+    data = _purge_expired(_load())
+    data[fingerprint] = time.time()
+    _save(data)
 
 
 def clear():
     """Clear all tracked alerts (for testing)."""
-    _save(set())
+    _save({})
 
 
 def count() -> int:
-    """Return number of tracked alerts."""
-    return len(_load())
+    return len(_purge_expired(_load()))
+
+
+def get_status() -> list[dict]:
+    """Returns list of tracked alerts with human-readable expiry time."""
+    data   = _purge_expired(_load())
+    now    = time.time()
+    result = []
+    for fp, ts in data.items():
+        age_hours   = (now - ts) / 3600
+        expires_in  = ALERT_EXPIRY_HOURS - age_hours
+        result.append({
+            "fingerprint": fp,
+            "age_hours":   round(age_hours, 2),
+            "expires_in":  round(expires_in, 2),
+        })
+    return sorted(result, key=lambda x: x["age_hours"])

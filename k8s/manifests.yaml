@@ -46,7 +46,7 @@ spec:
         - name: acr-secret
       containers:
         - name: agentic-aiops
-          image: devopsplatformacr.azurecr.io/agentic-aiops:e40bfb9
+          image: devopsplatformacr.azurecr.io/agentic-aiops:latest
           envFrom:
             - configMapRef:
                 name: aiops-config
