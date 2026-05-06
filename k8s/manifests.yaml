@@ -20,7 +20,9 @@ data:
   POLL_INTERVAL_SECONDS: "60"
   LOKI_LOG_LINES:        "50"
   LOKI_LOOKBACK_SECONDS: "300"
-  ALERT_SEVERITIES:      "critical,warning"
+  ALERT_SEVERITIES:      "critical,warning,info,none"
+  ALERT_EXPIRY_HOURS:    "6"
+  EXCLUDE_ALERTS:        "KubeSchedulerDown,KubeControllerManagerDown,KubeProxyDown,Watchdog,KubeClientCertificateExpiration"
 
 ---
 apiVersion: apps/v1
@@ -31,7 +33,7 @@ metadata:
   labels:
     app: agentic-aiops
 spec:
-  replicas: 1       # single instance — prevents duplicate Issues/PRs
+  replicas: 1
   selector:
     matchLabels:
       app: agentic-aiops
@@ -40,17 +42,13 @@ spec:
       labels:
         app: agentic-aiops
       annotations:
-        prometheus.io/scrape: "false"  # agent doesn't expose metrics
+        prometheus.io/scrape: "false"
     spec:
       imagePullSecrets:
         - name: acr-secret
       containers:
         - name: agentic-aiops
-<<<<<<< HEAD
-          image: devopsplatformacr.azurecr.io/agentic-aiops:53d3514
-=======
-          image: devopsplatformacr.azurecr.io/agentic-aiops:53d3514
->>>>>>> refs/remotes/origin/main
+          image: devopsplatformacr.azurecr.io/agentic-aiops:latest
           envFrom:
             - configMapRef:
                 name: aiops-config
@@ -65,7 +63,6 @@ spec:
               memory: 256Mi
 
 ---
-# ArgoCD Application — tells ArgoCD to watch this repo
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
