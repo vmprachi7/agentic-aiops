@@ -39,6 +39,7 @@ Creates a GitHub Issue:
 The runbook is in a collapsible `<details>` block — available without cluttering the Issue.
 The engineer reads it, edits if needed, closes the Issue when resolved.
 
+here is sample [issue](https://github.com/vmprachi7/agentic-aiops/issues/37)
 
 ---
 
@@ -62,19 +63,14 @@ The engineer reads it, edits if needed, closes the Issue when resolved.
 ## Screenshots
 
 ### Alert fired — GitHub Issue created automatically
-![GitHub Issue created by agent](.github/screenshots/issue-created.png)
+![GitHub Issue created by agent](.github/workflows/screenshots/issue-created.png)
 
 ### AI root cause analysis + collapsible runbook
-![AI analysis comment with runbook](.github/screenshots/ai-analysis-comment.png)
+![AI analysis comment with runbook](.github/workflows/screenshots/ai-analysis-comment.png)
 
 ### Prometheus alerts page — KubePodNotReady firing
-![Prometheus alerts](.github/screenshots/prometheus-alerts.png)
+![Prometheus alerts](.github/workflows/screenshots/prometheus-alerts.png)
 
-### Grafana alert rules — firing state
-![Grafana firing alerts](.github/screenshots/grafana-alerts.png)
-
-### Agent logs — processing alert in real time
-![Agent processing alert](.github/screenshots/agent-logs.png)
 
 
 ---
